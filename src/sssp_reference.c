@@ -91,14 +91,13 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
     dist[root]=0.0;
     pred[root]=root;
 
-    printf("Starting BF nlocalverts=%d\n", g.nlocalverts);
+    //printf("Starting BF nlocalverts=%d\n", g.nlocalverts);
     // iterations
 	for(i = 0; i < g.nlocalverts-1; i++){
         int terminate = 1;
         // loop all edges
         for(j = 0; j < g.nlocalverts; j++){
           for(l = rowstarts[j]; l < rowstarts[j+1]; l++){
-            //send_relax(COLUMN(l),dist[j]+weights[l],j);
             if(dist[COLUMN(l)] < 0 || weights[l] + dist[j] < dist[COLUMN(l)]){
               if(weights[l] + dist[j] >= 0){
                 dist[COLUMN(l)] = weights[l] + dist[j];
@@ -111,7 +110,7 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
         //printf("Checking terminate, iteration %d\n", i);
         if(terminate == 1) break;
     }
-    printf("Starting BF\n");
+    
 /*
   sum=1;
 	int64_t lastvisited=1;
