@@ -15,5 +15,11 @@ HEADERS = common.h csr_reference.h bitmap_reference.h
 graph500_sssp: bfs_reference.c $(SOURCES) $(HEADERS) $(GENERATOR_SOURCES) csr_reference.c sssp_reference.c
 	$(CC) $(CFLAGS) -DSSSP -DSKIP_BFS $(LDFLAGS) -o graph500_sssp bfs_reference.c sssp_reference.c csr_reference.c $(SOURCES) $(GENERATOR_SOURCES) -lm
 
+# check
+check_EXE=graph500_sssp 18
+
+CHECKS=check
+
+
 clean:
 	-rm -f graph500_*
