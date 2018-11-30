@@ -44,6 +44,7 @@ void relaxhndl(const relaxmsg *m) {
 	if (*dest_dist < 0 || *dest_dist > w) {
 		*dest_dist = w; //update distance
 		pred_glob[vloc]=m->src_vloc; //update path
+    printf("Source = %d, Dest = %d, Weight = %f\n", m->src_vloc, vloc, w);
 /*
 		if(lightphase && !TEST_VISITEDLOC(vloc)) //Bitmap used to track if was already relaxed with light edge
 		{
@@ -65,7 +66,7 @@ void send_relax(int64_t glob, float weight,int fromloc) {
 void initialize(int64_t* pred, float* dist) {
 	int i;
 	for(i = 0; i < g.nlocalverts; i++){
-    dist[i] = 1e20;
+    dist[i] = -1.0;
     pred[i] = -1;
  }
 }
@@ -92,21 +93,22 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
 
     printf("Starting BF nlocalverts=%d\n", g.nlocalverts);
     // iterations
-	for(i = 0; i < g.nlocalverts; i++){
+	for(i = 0; i < g.nlocalverts-1; i++){
         int terminate = 1;
         // loop all edges
         for(j = 0; j < g.nlocalverts; j++){
           for(l = rowstarts[j]; l < rowstarts[j+1]; l++){
-            if(weights[l] + dist[j] < dist[COLUMN(j)]){
-              dist[COLUMN(l)] = weights[l] + dist[j];
-              pred[COLUMN(l)] = j;
-              glob_dist[COLUMN(l)] = weights[l] + dist[j];
-              pred_glob[COLUMN(l)] = j;
-              terminate = 0;
+            //send_relax(COLUMN(l),dist[j]+weights[l],j);
+            if(dist[COLUMN(l)] < 0 || weights[l] + dist[j] < dist[COLUMN(l)]){
+              if(weights[l] + dist[j] >= 0){
+                dist[COLUMN(l)] = weights[l] + dist[j];
+                pred[COLUMN(l)] = j;
+                terminate = 0;
+              }
             }
           }
         }
-        printf("Checking terminate\n");
+        //printf("Checking terminate, iteration %d\n", i);
         if(terminate == 1) break;
     }
     printf("Starting BF\n");
