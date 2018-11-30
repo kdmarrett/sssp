@@ -403,6 +403,7 @@ double* validate_times2 = (double*)xmalloc(num_bfs_roots * sizeof(double));
 	for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
 		int64_t root = bfs_roots[bfs_root_idx];
 
+    fprintf(stderr, "Starting SSSP %d\n", bfs_root_idx);
 		if (rank == 0) fprintf(stderr, "Running SSSP %d\n", bfs_root_idx);
 
 		clean_pred(&pred[0]);

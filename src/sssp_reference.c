@@ -12,6 +12,7 @@
 #include "common.h"
 #include "csr_reference.h"
 #include "bitmap_reference.h"
+#include "stdio.h"
 
 // variables shared from bfs_reference
 extern oned_csr_graph g;
@@ -43,7 +44,7 @@ void relaxhndl(const relaxmsg *m) {
 	if (*dest_dist < 0 || *dest_dist > w) {
 		*dest_dist = w; //update distance
 		pred_glob[vloc]=m->src_vloc; //update path
-
+/*
 		if(lightphase && !TEST_VISITEDLOC(vloc)) //Bitmap used to track if was already relaxed with light edge
 		{
 			if(w < glob_maxdelta) { //if falls into current bucket needs further reprocessing
@@ -51,6 +52,7 @@ void relaxhndl(const relaxmsg *m) {
 				SET_VISITEDLOC(vloc);
 			}
 		}
+   */
 	}
 }
 
@@ -60,27 +62,56 @@ void send_relax(int64_t glob, float weight,int fromloc) {
     relaxhndl(&m);
 }
 
+void initialize(int64_t* pred, float* dist) {
+	int i;
+	for(i = 0; i < g.nlocalverts; i++){
+    dist[i] = 1e20;
+    pred[i] = -1;
+ }
+}
+
 void run_sssp(int64_t root,int64_t* pred,float *dist) {
     // TODO: your modification here
 
-	unsigned int i,j;
+	unsigned int i,j, l;
 	long sum=0;
 
 	float delta = 0.1;
 	glob_mindelta=0.0;
 	glob_maxdelta=delta;
 	glob_dist=dist;
-	weights=g.weights;
+	weights=g.weights; // size 4 * nlocaledges
 	pred_glob=pred;
 	qc=0;q2c=0;
 
+    initialize(pred, dist);
     q1[0]=root;
     qc=1;
     dist[root]=0.0;
     pred[root]=root;
 
-	sum=1;
-
+    printf("Starting BF nlocalverts=%d\n", g.nlocalverts);
+    // iterations
+	for(i = 0; i < g.nlocalverts; i++){
+        int terminate = 1;
+        // loop all edges
+        for(j = 0; j < g.nlocalverts; j++){
+          for(l = rowstarts[j]; l < rowstarts[j+1]; l++){
+            if(weights[l] + dist[j] < dist[COLUMN(j)]){
+              dist[COLUMN(l)] = weights[l] + dist[j];
+              pred[COLUMN(l)] = j;
+              glob_dist[COLUMN(l)] = weights[l] + dist[j];
+              pred_glob[COLUMN(l)] = j;
+              terminate = 0;
+            }
+          }
+        }
+        printf("Checking terminate\n");
+        if(terminate == 1) break;
+    }
+    printf("Starting BF\n");
+/*
+  sum=1;
 	int64_t lastvisited=1;
 	while(sum!=0) {
 		//1. iterate over light edges
@@ -118,8 +149,10 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
 					q1[qc++]=i; //this is lowest bucket
 			} else if(dist[i]!=-1.0) lvlvisited++;
 	}
-
+*/
 }
+
+
 
 void clean_shortest(float* dist) {
 	int i;
