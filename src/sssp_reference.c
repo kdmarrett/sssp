@@ -108,7 +108,10 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
           }
         }
         //printf("Checking terminate, iteration %d\n", i);
-        if(terminate == 1) break;
+        if(terminate == 1) {
+          printf("terminated on iteration: %d\n", i);
+          break;
+        }
     }
     
 /*
