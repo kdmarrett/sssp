@@ -432,6 +432,7 @@ void sorting_block(int2* update_signal,
 
 int communication_unit(int2* update_sginal, data_i* s, data_i* d, data_v* weights, data_v* dist_s, data_v* dist_local){
 #pragma HLS inline off 
+
   data_v dist_s1[8];
   #pragma HLS array_partition variable=dist_s1 complete
     data_v weights1[8];
@@ -447,7 +448,7 @@ int communication_unit(int2* update_sginal, data_i* s, data_i* d, data_v* weight
   int terminate = 1;
   
 // sorting block
-  sorting_block(update_signal, s, d, weights, dist_s, update_signal1, s1, d1, weights6, dist_s1)
+  sorting_block(update_signal, s, d, weights, dist_s, update_signal1, s1, d1, weights1, dist_s1)
   
 // mem read block
   data_v dist_d1[P];
