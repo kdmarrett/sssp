@@ -18,8 +18,7 @@
 #include "ap_fixed.h"
 #include "ap_int.h"
 
-typedef ap_fixed<8, 2> data_v; // representing weight of vertices
-typedef ap_fixed<8, 2> data_e; // representing weight of edges
+typedef ap_fixed<8, 2> data_v; // representing weight of vertices and edges
 typedef int24          data_i; // representing indices
 
 #define MAX_VERTICES 2^23
@@ -96,7 +95,10 @@ void data_forwarding_unit(data_v* cur, int2* update signal, data_v* fwd){
   
 }
 
-void mem_read(data_v* dist_d, data_i* d, int2* update_signal, data_v* dist_local){
+void mem_read(data_v* dist_d, 
+              data_i* d, 
+              int2* update_signal, 
+              data_v* dist_local){
 #pragma HLS inline off
 // data forwarding
   for(int i = 0; i < P; i++){
@@ -105,30 +107,368 @@ void mem_read(data_v* dist_d, data_i* d, int2* update_signal, data_v* dist_local
   }
 }
 
-int communication_unit(int2* update_sginal, data_i* s, data_i* d, data_e* weights, data_v* dist_s, data_v* dist_local){
+uint1 compare(int2 up1, 
+              int2 up2, 
+              data_i ind1, 
+              data_i ind2, 
+              data_v val1, 
+              data_v val2){
+  uint swap = 0;
+  if(up1 == 0 & up2 == 1) swap = 1;
+  else if (up1 == 1 & up2 == 1 & (ind2 < ind1)) swap = 1;
+  else if (up1 == 1 & up2 == 1 & (ind2 == ind1) & val2 < val1) swap = 1;
+  else swap = 0;
+  
+  return swap;
+}
+
+void sorting_block(int2* update_signal, 
+                   data_i* s, 
+                   data_i* d, 
+                   data_v* weights, 
+                   data_v* dist_s,
+                   int2* update_signal6, 
+                   data_i* s6, 
+                   data_i* d6, 
+                   data_v* weights6, 
+                   data_v* dist_s6){
+#pragma HLS inline off
+
+    data_v dist_s1[8];
+    #pragma HLS array_partition variable=dist_s1 complete
+    data_v dist_s2[8];
+    #pragma HLS array_partition variable=dist_s2 complete
+    data_v dist_s3[8];
+    #pragma HLS array_partition variable=dist_s3 complete
+    data_v dist_s4[8];
+    #pragma HLS array_partition variable=dist_s4 complete
+    data_v dist_s5[8];
+    #pragma HLS array_partition variable=dist_s5 complete
+    
+    // source indices
+    data_i s1[8];
+    #pragma HLS array_partition variable=s1 complete
+    data_i s2[8];
+    #pragma HLS array_partition variable=s2 complete
+    data_i s3[8];
+    #pragma HLS array_partition variable=s3 complete
+    data_i s4[8];
+    #pragma HLS array_partition variable=s4 complete
+    data_i s5[8];
+    #pragma HLS array_partition variable=s5 complete
+    
+    // destination indices
+    data_i d1[8];
+    #pragma HLS array_partition variable=d1 complete
+    data_i d2[8];
+    #pragma HLS array_partition variable=d2 complete
+    data_i d3[8];
+    #pragma HLS array_partition variable=d3 complete
+    data_i d4[8];
+    #pragma HLS array_partition variable=d4 complete
+    data_i d5[8];
+    #pragma HLS array_partition variable=d5 complete
+    
+    // weights of edges
+    data_v weights1[8];
+    #pragma HLS array_partition variable=weights1 complete
+    data_v weights2[8];
+    #pragma HLS array_partition variable=weights2 complete
+    data_v weights3[8];
+    #pragma HLS array_partition variable=weights3 complete
+    data_v weights4[8];
+    #pragma HLS array_partition variable=weights4 complete
+    data_v weights5[8];
+    #pragma HLS array_partition variable=weights5 complete
+    
+    // update signals
+    int2 update_signal1[8];
+    #pragma HLS array_partition variable=update_signal1 complete
+    int2 update_signal2[8];
+    #pragma HLS array_partition variable=update_signal2 complete
+    int2 update_signal3[8];
+    #pragma HLS array_partition variable=update_signal3 complete
+    int2 update_signal4[8];
+    #pragma HLS array_partition variable=update_signal4 complete
+    int2 update_signal5[8];
+    #pragma HLS array_partition variable=update_signal5 complete
+    
+#pragma HLS pipeline II=1
+  
+  //stage 1
+  for(int i = 0; i < 4; i++){
+    #pragma HLS unroll
+    if(compare(update_signal[2*i], update_signal[2*i+1], d[2*i], d[2*i+1], weights[2*i]+dist_s[2*i], weights[2*i+1]+dist_s[2*i+1]) == 1){
+      update_signal1[2*i] = update_signal[2*i+1];
+      weights1[2*i] = weights[2*i+1];
+      s1[2*i] = s[2*i+1];
+      d1[2*i] = d[2*i+1];
+      dist_s1[2*i] = dist_s[2*i+1];
+      
+      update_signal1[2*i+1] = update_signal[2*i];
+      weights1[2*i+1] = weights[2*i];
+      s1[2*i+1] = s[2*i];
+      d1[2*i+1] = d[2*i];
+      dist_s1[2*i+1] = dist_s[2*i];
+    } else {
+      update_signal1[2*i] = update_signal[2*i];
+      weights1[2*i] = weights[2*i];
+      s1[2*i] = s[2*i];
+      d1[2*i] = d[2*i];
+      dist_s1[2*i] = dist_s[2*i];
+      
+      update_signal1[2*i+1] = update_signal[2*i+1];
+      weights1[2*i+1] = weights[2*i+1];
+      s1[2*i+1] = s[2*i+1];
+      d1[2*i+1] = d[2*i];
+      dist_s1[2*i+1] = dist_s[2*i+1];
+    }
+  }
+  
+  //stage2
+  for(int i = 0; i < 2; i++){
+    #pragma HLS unroll
+    if(compare(update_signal1[i], update_signal1[3-i], d1[i], d1[3-i], weights1[i]+dist_s1[3-i], weights1[i]+dist_s1[3-i]) == 1){
+      update_signal2[i] = update_signal1[3-i];
+      weights2[i] = weights1[3-i];
+      s2[i] = s1[3-i];
+      d2[i] = d1[3-i];
+      dist_s2[i] = dist_s1[3-i];
+      
+      update_signal2[3-i] = update_signal1[i];
+      weights2[3-i] = weights1[i];
+      s2[3-i] = s1[i];
+      d2[3-i] = d1[i];
+      dist_s2[3-i] = dist_s1[i];
+    } else {
+      update_signal2[3-i] = update_signal1[3-i];
+      weights2[3-i] = weights1[3-i];
+      s2[3-i] = s1[3-i];
+      d2[3-i] = d1[3-i];
+      dist_s2[3-i] = dist_s1[3-i];
+      
+      update_signal2[i] = update_signal1[i];
+      weights2[i] = weights1[i];
+      s2[i] = s1[i];
+      d2[i] = d1[i];
+      dist_s2[i] = dist_s1[i];
+    }
+    
+    if(compare(update_signal1[i+4], update_signal1[7-i], d1[i+4], d1[7-i], weights1[i+4]+dist_s1[7-i], weights1[i+4]+dist_s1[7-i]) == 1){
+      update_signal2[i+4] = update_signal1[7-i];
+      weights2[i+4] = weights1[7-i];
+      s2[i+4] = s1[7-i];
+      d2[i+4] = d1[7-i];
+      dist_s2[i+4] = dist_s1[7-i];
+      
+      update_signal2[7-i] = update_signal1[i+4];
+      weights2[7-i] = weights1[i+4];
+      s2[7-i] = s1[i+4];
+      d2[7-i] = d1[i+4];
+      dist_s2[7-i] = dist_s1[i+4];
+    } else {
+      update_signal2[7-i] = update_signal1[7-i];
+      weights2[7-i] = weights1[7-i];
+      s2[7-i] = s1[7-i];
+      d2[7-i] = d1[7-i];
+      dist_s2[7-i] = dist_s1[7-i];
+      
+      update_signal2[i+4] = update_signal1[i+4];
+      weights2[i+4] = weights1[i+4];
+      s2[i+4] = s1[i+4];
+      d2[i+4] = d1[i+4];
+      dist_s2[i+4] = dist_s1[i+4];
+    }
+  }
+  
+  //stage 3
+  for(int i = 0; i < 4; i++){
+    #pragma HLS unroll
+    if(compare(update_signal2[2*i], update_signal2[2*i+1], d2[2*i], d2[2*i+1], weights2[2*i]+dist_s2[2*i], weights2[2*i+1]+dist_s2[2*i+1]) == 1){
+      update_signal3[2*i] = update_signal2[2*i+1];
+      weights3[2*i] = weights2[2*i+1];
+      s3[2*i] = s2[2*i+1];
+      d3[2*i] = d2[2*i+1];
+      dist_s3[2*i] = dist_s2[2*i+1];
+      
+      update_signal3[2*i+1] = update_signal2[2*i];
+      weights3[2*i+1] = weights2[2*i];
+      s3[2*i+1] = s2[2*i];
+      d3[2*i+1] = d2[2*i];
+      dist_s3[2*i+1] = dist_s2[2*i];
+    } else {
+      update_signal3[2*i] = update_signal2[2*i];
+      weights3[2*i] = weights2[2*i];
+      s3[2*i] = s2[2*i];
+      d3[2*i] = d2[2*i];
+      dist_s3[2*i] = dist_s2[2*i];
+      
+      update_signal3[2*i+1] = update_signal2[2*i+1];
+      weights3[2*i+1] = weights2[2*i+1];
+      s3[2*i+1] = s2[2*i+1];
+      d3[2*i+1] = d2[2*i+1];
+      dist_s3[2*i+1] = dist_s2[2*i+1];
+    }
+  }
+  
+  //stage 4
+  for(int i = 0; i < 4; i++){
+    #pragma HLS unroll
+    if(compare(update_signal3[i], update_signal3[7-i], d3[i], d3[7-i], weights3[i]+dist_s3[7-i], weights3[i]+dist_s3[7-i]) == 1){
+      update_signal4[i] = update_signal3[7-i];
+      weights4[i] = weights3[7-i];
+      s4[i] = s3[7-i];
+      d4[i] = d3[7-i];
+      dist_s4[i] = dist_s3[7-i];
+      
+      update_signal4[7-i] = update_signal3[i];
+      weights4[7-i] = weights3[i];
+      s4[7-i] = s3[i];
+      d4[7-i] = d3[i];
+      dist_s4[7-i] = dist_s3[i];
+    }else {
+      update_signal4[7-i] = update_signal3[7-i];
+      weights4[7-i] = weights3[7-i];
+      s4[7-i] = s3[7-i];
+      d4[7-i] = d3[7-i];
+      dist_s4[7-i] = dist_s3[7-i];
+      
+      update_signal4[i] = update_signal3[i];
+      weights4[i] = weights3[i];
+      s4[i] = s3[i];
+      d4[i] = d3[i];
+      dist_s4[i] = dist_s3[i];
+    }
+  }
+  
+  //stage5
+  for(int i = 0; i < 2; i++){
+    #pragma HLS unroll
+    if(compare(update_signal4[i], update_signal4[i+2], d4[i], d4[i+2], weights4[i]+dist_s4[i+2], weights4[i]+dist_s4[i+2]) == 1){
+      update_signal5[i] = update_signal4[i+2];
+      weights5[i] = weights4[i+2];
+      s5[i] = s4[i+2];
+      d5[i] = d4[i+2];
+      dist_s5[i] = dist_s4[i+2];
+      
+      update_signal5[i+2] = update_signal4[i];
+      weights5[i+2] = weights4[i];
+      s5[i+2] = s4[i];
+      d5[i+2] = d4[i];
+      dist_s5[i+2] = dist_s4[i];
+    } else {
+      update_signal5[i+2] = update_signal4[i+2];
+      weights5[i+2] = weights4[i+2];
+      s5[i+2] = s4[i+2];
+      d5[i+2] = d4[i+2];
+      dist_s5[i+2] = dist_s4[i+2];
+      
+      update_signal5[i] = update_signal4[i];
+      weights5[i] = weights4[i];
+      s5[i] = s4[i];
+      d5[i] = d4[i];
+      dist_s5[i] = dist_s4[i];
+    }
+    
+    if(compare(update_signal4[i+4], update_signal4[i+6], d4[i+4], d4[i+6], weights4[i+4]+dist_s4[i+6], weights4[i+4]+dist_s4[i+6]) == 1){
+      update_signal5[i+4] = update_signal4[i+6];
+      weights5[i+4] = weights4[i+6];
+      s5[i+4] = s4[i+6];
+      d5[i+4] = d4[i+6];
+      dist_s5[i+4] = dist_s4[i+6];
+      
+      update_signal5[i+6] = update_signal4[i+4];
+      weights5[i+6] = weights4[i+4];
+      s5[i+6] = s4[i+4];
+      d5[i+6] = d4[i+4];
+      dist_s5[i+6] = dist_s4[i+4];
+    } else {
+      update_signal5[i+6] = update_signal4[i+6];
+      weights5[i+6] = weights4[i+6];
+      s5[i+6] = s4[i+6];
+      d5[i+6] = d4[i+6];
+      dist_s5[i+6] = dist_s4[i+6];
+      
+      update_signal5[i+4] = update_signal4[i+4];
+      weights5[i+4] = weights4[i+4];
+      s5[i+4] = s4[i+4];
+      d5[i+4] = d4[i+4];
+      dist_s5[i+4] = dist_s4[i+4];
+    }
+     
+  }
+  
+  //stage 6
+  for(int i = 0; i < 4; i++){
+    #pragma HLS unroll
+    if(compare(update_signal5[2*i], update_signal5[2*i+1], d5[2*i], d5[2*i+1], weights5[2*i]+dist_s5[2*i], weights5[2*i+1]+dist_s5[2*i+1]) == 1){
+      update_signal6[2*i] = update_signal5[2*i+1];
+      weights6[2*i] = weights5[2*i+1];
+      s6[2*i] = s5[2*i+1];
+      d6[2*i] = d5[2*i+1];
+      dist_s6[2*i] = dist_s5[2*i+1];
+      
+      update_signal6[2*i+1] = update_signal5[2*i];
+      weights6[2*i+1] = weights5[2*i];
+      s6[2*i+1] = s5[2*i];
+      d6[2*i+1] = d5[2*i];
+      dist_s6[2*i+1] = dist_s5[2*i];
+    } else {
+      update_signal6[2*i] = update_signal5[2*i];
+      weights6[2*i] = weights5[2*i];
+      s6[2*i] = s5[2*i];
+      d6[2*i] = d5[2*i];
+      dist_s6[2*i] = dist_s5[2*i];
+      
+      update_signal6[2*i+1] = update_signal5[2*i+1];
+      weights6[2*i+1] = weights5[2*i+1];
+      s6[2*i+1] = s5[2*i+1];
+      d6[2*i+1] = d5[2*i+1];
+      dist_s6[2*i+1] = dist_s5[2*i+1];
+    }
+  }
+
+}
+
+int communication_unit(int2* update_sginal, data_i* s, data_i* d, data_v* weights, data_v* dist_s, data_v* dist_local){
 #pragma HLS inline off 
+  data_v dist_s1[8];
+  #pragma HLS array_partition variable=dist_s1 complete
+    data_v weights1[8];
+    #pragma HLS array_partition variable=weights1 complete
+    data_v s1[8];
+    #pragma HLS array_partition variable=s1 complete
+    data_v d1[8];
+    #pragma HLS array_partition variable=d1 complete
+    data_v update_signal1[8];
+    #pragma HLS array_partition variable=update_signal1 complete
+    
 #pragma HLS pipeline II=1
   int terminate = 1;
+  
 // sorting block
+  sorting_block(update_signal, s, d, weights, dist_s, update_signal1, s1, d1, weights6, dist_s1)
+  
 // mem read block
-  data_v dist_d[P];
-  #pragma HLS array_partition variable=dist_d complete
-  mem_read(dist_d, d, dist_local); 
+  data_v dist_d1[P];
+  #pragma HLS array_partition variable=dist_d1 complete
+  mem_read(dist_d1, d1, dist_local);
+   
 // computation block
 // data forwarding
   return terminate;
 }
 
 
-//extern "C" {
+extern "C" {
 
 void run_sssp(data_i root,
               data_i* pred,
               data_v* dist,
-              data_e* weight_dram1,
-              data_e* weight_dram2,
-              data_e* weight_dram3,
-              data_e* weight_dram4) {
+              data_v* weight_dram1,
+              data_v* weight_dram2,
+              data_v* weight_dram3,
+              data_v* weight_dram4) {
     // TODO: your modification here
 
 	unsigned int i,j, l;
@@ -171,13 +511,13 @@ void run_sssp(data_i root,
     #pragma HLS array_partition variable=com4_d complete
     
     // weights of edges
-    data_e com1_weights[8];
+    data_v com1_weights[8];
     #pragma HLS array_partition variable=com1_weights complete
-    data_e com2_weights[8];
+    data_v com2_weights[8];
     #pragma HLS array_partition variable=com2_weights complete
-    data_e com3_weights[8];
+    data_v com3_weights[8];
     #pragma HLS array_partition variable=com3_weights complete
-    data_e com4_weights[8];
+    data_v com4_weights[8];
     #pragma HLS array_partition variable=com4_weights complete
     
     // update signals
@@ -291,7 +631,7 @@ void run_sssp(data_i root,
 */
 }
 
-// } // extern "C"
+} // extern "C"
 
 
 #endif
