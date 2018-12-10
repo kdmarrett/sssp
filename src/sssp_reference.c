@@ -14,6 +14,19 @@
 #include "bitmap_reference.h"
 #include "stdio.h"
 
+// modification:
+#include "ap_fixed.h"
+#include "ap_int.h"
+
+typedef ap_fixed<8, 2> data_v; // representing weight of vertices
+typedef ap_fixed<8, 2> data_e; // representing weight of edges
+typedef int24          data_i; // representing indices
+
+#define MAX_VERTICES 2^23
+#define P            8
+
+// end of modification
+
 // variables shared from bfs_reference
 extern oned_csr_graph g;
 extern int qc,q2c;
@@ -28,6 +41,7 @@ float glob_maxdelta, glob_mindelta; //range for current bucket
 float *weights;
 volatile int lightphase;
 
+/*
 //Relaxation data type
 typedef struct  __attribute__((__packed__)) relaxmsg {
 	float w; //weight of an edge
@@ -44,8 +58,8 @@ void relaxhndl(const relaxmsg *m) {
 	if (*dest_dist < 0 || *dest_dist > w) {
 		*dest_dist = w; //update distance
 		pred_glob[vloc]=m->src_vloc; //update path
-    printf("Source = %d, Dest = %d, Weight = %f\n", m->src_vloc, vloc, w);
-/*
+    //printf("Source = %d, Dest = %d, Weight = %f\n", m->src_vloc, vloc, w);
+
 		if(lightphase && !TEST_VISITEDLOC(vloc)) //Bitmap used to track if was already relaxed with light edge
 		{
 			if(w < glob_maxdelta) { //if falls into current bucket needs further reprocessing
@@ -53,7 +67,7 @@ void relaxhndl(const relaxmsg *m) {
 				SET_VISITEDLOC(vloc);
 			}
 		}
-   */
+   
 	}
 }
 
@@ -62,34 +76,158 @@ void send_relax(int64_t glob, float weight,int fromloc) {
 	relaxmsg m = {weight,glob,fromloc};
     relaxhndl(&m);
 }
+*/
 
-void initialize(int64_t* pred, float* dist) {
+void clean_shortest(data_v* dist) {
+	int i;
+	for(i=0;i<g.nlocalverts;i++) dist[i]=-1.0;
+}
+
+void initialize(data_v* dist) {
 	int i;
 	for(i = 0; i < g.nlocalverts; i++){
+  #pragma HLS pipeline II=1
     dist[i] = -1.0;
-    pred[i] = -1;
+    //pred[i] = -1;
  }
 }
 
-void run_sssp(int64_t root,int64_t* pred,float *dist) {
+void data_forwarding_unit(data_v* cur, int2* update signal, data_v* fwd){
+  
+}
+
+void mem_read(data_v* dist_d, data_i* d, int2* update_signal, data_v* dist_local){
+#pragma HLS inline off
+// data forwarding
+  for(int i = 0; i < P; i++){
+    #pragma HLS unroll factor=8
+    dist_d[i] = dist_local[d[i]];
+  }
+}
+
+int communication_unit(int2* update_sginal, data_i* s, data_i* d, data_e* weights, data_v* dist_s, data_v* dist_local){
+#pragma HLS inline off 
+#pragma HLS pipeline II=1
+  int terminate = 1;
+// sorting block
+// mem read block
+  data_v dist_d[P];
+  #pragma HLS array_partition variable=dist_d complete
+  mem_read(dist_d, d, dist_local); 
+// computation block
+// data forwarding
+  return terminate;
+}
+
+
+//extern "C" {
+
+void run_sssp(data_i root,
+              data_i* pred,
+              data_v* dist,
+              data_e* weight_dram1,
+              data_e* weight_dram2,
+              data_e* weight_dram3,
+              data_e* weight_dram4) {
     // TODO: your modification here
 
 	unsigned int i,j, l;
 	long sum=0;
 
-	float delta = 0.1;
-	glob_mindelta=0.0;
-	glob_maxdelta=delta;
+	//weights=g.weights; // size 4 * nlocaledges
 	glob_dist=dist;
-	weights=g.weights; // size 4 * nlocaledges
 	pred_glob=pred;
-	qc=0;q2c=0;
 
-    initialize(pred, dist);
-    q1[0]=root;
-    qc=1;
-    dist[root]=0.0;
-    pred[root]=root;
+    // arrays for each of the computation units
+    // accessing source is random, so use seperate arrays for them on BRAM
+    // but accessing destination can be from URAM, since it is sorted
+    data_v dist_com1_s[8];
+    #pragma HLS array_partition variable=dist_com1_s complete
+    data_v dist_com2_s[8];
+    #pragma HLS array_partition variable=dist_com2_s complete
+    data_v dist_com3_s[8];
+    #pragma HLS array_partition variable=dist_com3_s complete
+    data_v dist_com4_s[8];
+    #pragma HLS array_partition variable=dist_com4_s complete
+    
+    // source indices
+    data_i com1_s[8];
+    #pragma HLS array_partition variable=com1_s complete
+    data_i com2_s[8];
+    #pragma HLS array_partition variable=com2_s complete
+    data_i com3_s[8];
+    #pragma HLS array_partition variable=com3_s complete
+    data_i com4_s[8];
+    #pragma HLS array_partition variable=com4_s complete
+    
+    // destination indices
+    data_i com1_d[8];
+    #pragma HLS array_partition variable=com1_d complete
+    data_i com2_d[8];
+    #pragma HLS array_partition variable=com2_d complete
+    data_i com3_d[8];
+    #pragma HLS array_partition variable=com3_d complete
+    data_i com4_d[8];
+    #pragma HLS array_partition variable=com4_d complete
+    
+    // weights of edges
+    data_e com1_weights[8];
+    #pragma HLS array_partition variable=com1_weights complete
+    data_e com2_weights[8];
+    #pragma HLS array_partition variable=com2_weights complete
+    data_e com3_weights[8];
+    #pragma HLS array_partition variable=com3_weights complete
+    data_e com4_weights[8];
+    #pragma HLS array_partition variable=com4_weights complete
+    
+    // update signals
+    int2 com1_update_signal[8];
+    #pragma HLS array_partition variable=com1_update_signal complete
+    int2 com2_update_signal[8];
+    #pragma HLS array_partition variable=com2_update_signal complete
+    int2 com3_update_signal[8];
+    #pragma HLS array_partition variable=com3_update_signal complete
+    int2 com4_update_signal[8];
+    #pragma HLS array_partition variable=com4_update_signal complete
+
+    // initialize : dist on URAM, no need to initialize pred
+    data_v dist_local[MAX_VERTICES];
+    #pragma HLS RESOURCE variable=dist_local core=XPM_MEMORY uram
+    #pragma HLS array_partition variable=dist_local block factor=4 // ?? check to see if you can use complete
+    initialize(dist_local);
+    dist_local[root]=0.0;
+    pred[root]=root; 
+    
+    // loop over iteration
+    for(i = 0; i < g.nlocalverts-1; i++){
+    
+      int terminate = 1, terminate_com1 = 1, terminate_com2 = 1, terminate_com3 = 1, terminate_com4 = 1;
+    // loop over edges/(computation_unit*p)
+      for(j = 0; j < g.nlocaledges/(4*p); j++){
+      #pragma HLS unroll factor = 4
+    // 4 reading from dram: pack seperately as i, j, w(i,j)
+    // initialize update signals
+    
+    // 4 computation unit
+    // in each: sorting, mem read from URAM, computation unit, mem write to URAM and dram(for pred)
+          communication_unit(terminate_com1, com1_update_signal, com1_s, com1_d, com1_weights, dist_com1_s, dist_local);
+          communication_unit(terminate_com2, com2_update_signal, com2_s, com2_d, com2_weights, dist_com2_s, dist_local);
+          communication_unit(terminate_com3, com3_update_signal, com3_s, com3_d, com3_weights, dist_com3_s, dist_local);
+          communication_unit(terminate_com4, com4_update_signal, com4_s, com4_d, com4_weights, dist_com4_s, dist_local);
+          
+    // update pred based on update signals
+      
+      }
+      if(terminate_com1 == 1 & terminate_com2 == 1 & terminate_com3 == 1 & terminate_com4 == 1) break;
+    }
+    
+    // write vertices weights back to DRAM
+    for(i = 0; i < g.nlocalverts; i++){
+    #pragma HLS pipeline
+      dist[i] = dist_local[i];
+    }
+
+    
 
     //printf("Starting BF nlocalverts=%d\n", g.nlocalverts);
     // iterations
@@ -99,7 +237,7 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
         for(j = 0; j < g.nlocalverts; j++){
           for(l = rowstarts[j]; l < rowstarts[j+1]; l++){
             if(dist[COLUMN(l)] < 0 || weights[l] + dist[j] < dist[COLUMN(l)]){
-              if(weights[l] + dist[j] >= 0){
+              if(weights[l] + dist[j] > 0){
                 dist[COLUMN(l)] = weights[l] + dist[j];
                 pred[COLUMN(l)] = j;
                 terminate = 0;
@@ -108,10 +246,7 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
           }
         }
         //printf("Checking terminate, iteration %d\n", i);
-        if(terminate == 1) {
-          printf("terminated on iteration: %d\n", i);
-          break;
-        }
+        if(terminate == 1) break;
     }
     
 /*
@@ -156,10 +291,7 @@ void run_sssp(int64_t root,int64_t* pred,float *dist) {
 */
 }
 
+// } // extern "C"
 
 
-void clean_shortest(float* dist) {
-	int i;
-	for(i=0;i<g.nlocalverts;i++) dist[i]=-1.0;
-}
 #endif
