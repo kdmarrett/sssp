@@ -16,6 +16,38 @@
 #include "inttypes.h"
 #define SSSP
 
+#define BYTES_PER_VERTEX 6
+#define SETCOLUMN(a,b) memcpy(((char*)column)+(BYTES_PER_VERTEX*a),&b,BYTES_PER_VERTEX)
+#define COLUMN(i) (*(int64_t*)(((char*)column)+(BYTES_PER_VERTEX*i)) & (int64_t)(0xffffffffffffffffULL>>(64-8*BYTES_PER_VERTEX)))
+
+typedef struct tuple_graph {
+	int data_in_file; /* 1 for file, 0 for memory */
+	int write_file; /* 1 if the file needs written, 0 if re-used and read */
+	/*packed_edge* restrict edgememory; [> NULL if edges are in file <]*/
+	int64_t edgememory_size;
+	int64_t max_edgememory_size;
+	/*MPI_File edgefile; [> Or MPI_FILE_NULL if edges are in memory <]*/
+	int64_t nglobaledges; /* Number of edges in graph, in both cases */
+#ifdef SSSP
+	/*float* restrict weightmemory;*/
+	/*MPI_File weightfile;*/
+#endif
+} tuple_graph;
+
+typedef struct oned_csr_graph {
+	size_t nlocalverts;
+	int64_t max_nlocalverts;
+	size_t nlocaledges;
+	int lg_nglobalverts;
+	int64_t nglobalverts,notisolated;
+	int *rowstarts;
+	int64_t *column;
+#ifdef SSSP 
+	float *weights;
+#endif
+	const tuple_graph* tg;
+} oned_csr_graph;
+
 // variables shared from bfs_reference
 extern oned_csr_graph g;
 extern int qc,q2c;

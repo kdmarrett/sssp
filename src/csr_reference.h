@@ -9,6 +9,7 @@
 
 #ifndef CSR_REFERENCE_H
 #define CSR_REFERENCE_H
+#define SSSP
 
 #include "common_safe.h"
 
