@@ -13,6 +13,7 @@
 /*#include "csr_reference.h"*/
 #include "bitmap_reference.h"
 #include "stdio.h"
+#include "inttypes.h"
 #define SSSP
 
 // variables shared from bfs_reference
