@@ -10,7 +10,7 @@
 #ifndef CSR_REFERENCE_H
 #define CSR_REFERENCE_H
 
-#include "common.h"
+#include "common_safe.h"
 
 typedef struct oned_csr_graph {
 	size_t nlocalverts;

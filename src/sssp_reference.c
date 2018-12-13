@@ -9,10 +9,11 @@
 
 // Graph500: Kernel 3 SSSP
 
-#include "common.h"
-#include "csr_reference.h"
+/*#include "common_safe.h"*/
+/*#include "csr_reference.h"*/
 #include "bitmap_reference.h"
 #include "stdio.h"
+#define SSSP
 
 // variables shared from bfs_reference
 extern oned_csr_graph g;
