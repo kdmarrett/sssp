@@ -39,10 +39,10 @@
 #include "ap_fixed.h"
 #include "ap_int.h"
 
-typedef ap_fixed<8, 2> data_v; // representing weight of vertices and edges
-typedef ap_uint<24>    data_i; // representing indices
+typedef ap_int<8> data_v; // representing weight of vertices and edges
+typedef ap_int<28>    data_i; // representing indices
 
-typedef ap_uint<56> mem_word;
+typedef ap_int<64> mem_word;
 
 static int compare_doubles(const void* a, const void* b) {
 	double aa = *(const double*)a;
@@ -126,10 +126,27 @@ int main(int argc, char** argv) {
 
     // Generate DRAM data structure
     srand(time(0)); // set random seed
-    ap_uint<56>* dram1;
+    ap_uint<64>* dram1;
 
     // declare the dram holding the edges
-    vector<ap_uint<56>, aligned_allocator<ap_uint<56>> dram1(tg.nglobaledges);
+    vector<ap_uint<64>, aligned_allocator<ap_uint<64>> dram1(tg.nglobaledges);
+    vector<int, aligned_allocator<int> pred(tg.nglobalverts);
+    vector<float, aligned_allocator<float> shortest(tg.nglobalverts);
+	/*int64_t* pred = (int64_t*)xMPI_Alloc_mem(nlocalverts * sizeof(int64_t));*/
+	/*float* shortest = (float*)xMPI_Alloc_mem(nlocalverts * sizeof(float));*/
+
+    // Fill dram1
+    // create edges bitpacked iterates
+    for (data_i i=0; i < nglobalverts; i++)  {
+        for (int j=0; j < edgefactor; j++) {
+            // starts are not sorted
+            data_i start = rand_range(0, nglobalverts - 1); // choose a random vertex
+            data_v local_weight = rand_weight();
+            dram1[i * edgefactor + j] = (start, i, local_weight); // this bit packs two idxs, 1 weigt
+        }
+    }
+    clean_pred(&pred[0]); //user-provided function from bfs_implementation.c
+
 
     // Setup device
     vector<cl::Device> devices = xcl::get_xil_devices();
@@ -145,17 +162,6 @@ int main(int argc, char** argv) {
     cl::Program program(context, devices, bins);
     cl::Kernel kernel(program, "sssp_reference");
 
-
-    // Fill dram1
-    // create edges bitpacked iterates
-    for (data_i i=0; i < nglobalverts; i++)  {
-        for (int j=0; j < edgefactor; j++) {
-            // starts are not sorted
-            data_i start = rand_range(0, nglobalverts - 1); // choose a random vertex
-            data_v local_weight = rand_weight();
-            dram1[i * edgefactor + j] = (start, i, local_weight); // this bit packs two idxs, 1 weigt
-        }
-    }
 
     // Place graph on device
     vector<cl::Memory> inBufVec, outBufVec;
