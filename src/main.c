@@ -29,8 +29,20 @@
 #include <stdio.h>
 #include <limits.h>
 #include <stdint.h>
-#include <inttypes.h>
 #include "csr_reference.h"
+#include "xcl2.hpp"
+#include <time.h>
+
+#define SKIP_BFS
+
+// modification:
+#include "ap_fixed.h"
+#include "ap_int.h"
+
+typedef ap_fixed<8, 2> data_v; // representing weight of vertices and edges
+typedef ap_uint<24>    data_i; // representing indices
+
+typedef ap_uint<56> mem_word;
 
 static int compare_doubles(const void* a, const void* b) {
 	double aa = *(const double*)a;
@@ -66,6 +78,15 @@ void get_statistics(const double x[], int n, volatile double r[s_LAST]) {
 	/* Clean up. */
 	free(xx);
 }
+
+data_i rand_range( data_i lower, data_i upper) {
+    return (rand() % (upper - lower + 1)) + lower;
+}
+
+data_v rand_weight() {
+    return (data_v) ((double) rand() / (double) RAND_MAX);
+}
+
 
 int main(int argc, char** argv) {
 	aml_init(&argc,&argv); //includes MPI_Init inside
@@ -103,6 +124,58 @@ int main(int argc, char** argv) {
 	tg.data_in_file = (filename != NULL);
 	tg.write_file = 1;
 
+    // Generate DRAM data structure
+    srand(time(0)); // set random seed
+    ap_uint<56>* dram1;
+
+    // declare the dram holding the edges
+    vector<ap_uint<56>, aligned_allocator<ap_uint<56>> dram1(tg.nglobaledges);
+
+    // Setup device
+    vector<cl::Device> devices = xcl::get_xil_devices();
+    cl::Device device = devices[0];
+
+    cl:Context context(device);
+    cl::CommandQueue q(context, device, CL_QUEUE_PROFILING_ENABLE);
+    string device_name = device.getInfo<CL_DEVICE_NAME>();
+
+    string binaryFile = xcl::find_binary_file(device_name, "sssp_reference");
+    cl::Program::Binaries bins = xcl::import_binary_file(binaryFile);
+    devices.resize(1);
+    cl::Program program(context, devices, bins);
+    cl::Kernel kernel(program, "sssp_reference");
+
+
+    // Fill dram1
+    // create edges bitpacked iterates
+    for (data_i i=0; i < nglobalverts; i++)  {
+        for (int j=0; j < edgefactor; j++) {
+            // starts are not sorted
+            data_i start = rand_range(0, nglobalverts - 1); // choose a random vertex
+            data_v local_weight = rand_weight();
+            dram1[i * edgefactor + j] = (start, i, local_weight); // this bit packs two idxs, 1 weigt
+        }
+    }
+
+    // Place graph on device
+    vector<cl::Memory> inBufVec, outBufVec;
+    cl::Buffer buffer_in(context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+            tg.nglobaledges * sizeof(mem_word) dram1.data();  
+    // TODO decide outbuffer
+    /*cl::Buffer buffer_in(context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,*/
+            /*tg.nglobaledges * sizeof(mem_word) dram1.data();  */
+    inBufVec.push_back(buffer_in);
+    /*outBufVec.push_back(buffer_out);*/
+
+    //copy input data to device global memory
+    q.enqueueMigrateMemObjects(inBufFec, 0); //0 signifies from host
+
+    // TODO is first data size correct for the kernel argument?
+    auto krnl_sssp_reference = cl::KernelFunctor< mem_word, cl::Buffer&, cl::Buffer&>(kernel);
+    // Setup of OpenCl end
+
+    // Run kernel
+    
 	if (tg.data_in_file) {
 		int is_opened = 0;
 		int mode = MPI_MODE_RDWR | MPI_MODE_EXCL | MPI_MODE_UNIQUE_OPEN;
