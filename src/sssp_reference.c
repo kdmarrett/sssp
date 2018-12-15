@@ -9,10 +9,12 @@
 
 // Graph500: Kernel 3 SSSP
 
+/*
 #include "common.h"
 #include "csr_reference.h"
 #include "bitmap_reference.h"
 #include "stdio.h"
+*/
 
 // modification:
 #include "ap_fixed.h"
@@ -34,6 +36,7 @@ typedef int24          data_i; // representing indices
 
 // end of modification
 
+/*
 // variables shared from bfs_reference
 extern oned_csr_graph g;
 extern int qc,q2c;
@@ -47,7 +50,7 @@ float *glob_dist;
 float glob_maxdelta, glob_mindelta; //range for current bucket
 float *weights;
 volatile int lightphase;
-
+*/
 
 void clean_shortest(data_v* dist) {
 	int i;
@@ -83,11 +86,11 @@ void Load(const bool enable,
   }
 }
 
-void initialize(data_v* dist) {
+void initialize(data_v* dist, int nv) {
 	int i;
-	for(i = 0; i < g.nlocalverts; i++){
+	for(i = 0; i < MAX_VERTICES; i++){
   #pragma HLS pipeline II=1
-    dist[i] = -1.0;
+    if(i < nv) dist[i] = -1.0;
     //pred[i] = -1;
  }
 }
@@ -705,9 +708,10 @@ void computation_unit(uint* terminate, int2* update_sginal, data_i* s, data_i* d
 }
 
 
-extern "C" {
 
-void run_sssp(int64 nlocaledges,
+
+void run_sssp(int nlocaledges,
+              int nlocalvertices,
               data_i root,
               data_i* pred,
               data_v* dist,
@@ -721,8 +725,8 @@ void run_sssp(int64 nlocaledges,
 	long sum=0;
 
 	//weights=g.weights; // size 4 * nlocaledges
-	glob_dist=dist;
-	pred_glob=pred;
+	//glob_dist=dist;
+	//pred_glob=pred;
 
     // arrays for each of the computation units
     // accessing source is random, so use seperate arrays for them on BRAM
@@ -837,7 +841,7 @@ void run_sssp(int64 nlocaledges,
     data_v dist_local[MAX_VERTICES];
     #pragma HLS RESOURCE variable=dist_local core=XPM_MEMORY uram
     #pragma HLS array_partition variable=dist_local cyclic factor=32 // ?? check to see if you can use complete
-    initialize(dist_local);
+    initialize(dist_local, nlocalvertices);
     dist_local[root]=0.0;
     pred[root]=root; 
     
@@ -860,10 +864,10 @@ void run_sssp(int64 nlocaledges,
     
     // loop over iteration
     for(i = 0; i < MAX_VERTICES; i++){
-      if( i < g.nlocalvertices-1 ){
-      uint1 terminate[2];
+      if( i < nlocalvertices-1 ){
+      uint1 terminate[4];
       #pragma HLS array_partition variable=terminate complete
-      for(int ii = 0; ii < 2; ii++) terminate[ii] = 1;
+      for(int ii = 0; ii < 4; ii++) terminate[ii] = 1;
       
     // loop over edges/(computation_unit*p)
       for(j = 0; j < MAX_ITER + BURST_SIZE; j+=BURST_SIZE, 
@@ -904,7 +908,7 @@ void run_sssp(int64 nlocaledges,
                     com7_update_signal[ii] = 1;
                   }
                   sorting_block(com7_update_signal, s_local1, d_local1, weight_local1, dist_com7_s, dist_com7_d, com8_update_signal, com8_s, com8_d, com8_weights, dist_com8_s, dist_com8_d);
-                  computation_block_revised(terminate+2, com8_update_signal,  com8_weights, dist_com8_s, dist_com8_d, com8_s, com8_d, dist_local, pred);
+                  computation_block_revised(terminate+3, com8_update_signal,  com8_weights, dist_com8_s, dist_com8_d, com8_s, com8_d, dist_local, pred);
                   
               } else {
                   for(int ii = 0; ii < P; ii++){
@@ -913,7 +917,7 @@ void run_sssp(int64 nlocaledges,
                     com5_update_signal[ii] = 1;
                   }
                   sorting_block(com5_update_signal, s_local1, d_local1, weight_local1, dist_com5_s, dist_com5_d, com6_update_signal, com6_s, com6_d, com6_weights, dist_com6_s, dist_com6_d);
-                  computation_block_revised(terminate+3, com6_update_signal,  com6_weights, dist_com6_s, dist_com6_d, com6_s, com6_d, dist_local, pred);
+                  computation_block_revised(terminate+2, com6_update_signal,  com6_weights, dist_com6_s, dist_com6_d, com6_s, com6_d, dist_local, pred);
               }
             }
           }
@@ -928,12 +932,10 @@ void run_sssp(int64 nlocaledges,
     // write vertices weights back to DRAM
     for(i = 0; i < MAX_VERTICES; i++){
     #pragma HLS pipeline
-      if(i < g.nlocalvertices) dist[i] = dist_local[i];
+      if(i < nlocalvertices) dist[i] = dist_local[i];
     }
 
-    
-
-} // extern "C"
+}
 
 
 #endif
