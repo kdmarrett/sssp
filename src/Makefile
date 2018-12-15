@@ -74,7 +74,7 @@ nothing:
 # binary container: binary_container_1.xclbin
 #
 
-binary_container_1/run_sssp.xo: ../src/sssp_reference.c /usr/include/stdio.h
+binary_container_1/run_sssp.xo: ../src/sssp_reference.cpp /usr/include/stdio.h
 	@mkdir -p $(@D)
 	-@$(RM) $@
 	$(XOCC) $(XOCC_OPTS) -c -k run_sssp -g  --nk run_sssp:1 --messageDb $(subst .xo,.mdb,$@) -I"$(<D)" --xp misc:solution_name=run_sssp --temp_dir binary_container_1 --report_dir binary_container_1/reports --log_dir binary_container_1/logs -o"$@" "$<"
