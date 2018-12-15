@@ -16,6 +16,8 @@
 #include "stdio.h"
 */
 
+extern "C" {
+
 // modification:
 #include "ap_fixed.h"
 #include "ap_int.h"
@@ -951,4 +953,5 @@ void run_sssp(int nlocaledges,
 
 }
 
+}
 

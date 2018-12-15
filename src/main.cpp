@@ -184,8 +184,10 @@ int main(int argc, char** argv) {
 
     // Run kernel /* Do the actual SSSP. */
     double sssp_start = MPI_Wtime();
-    krnl_sssp_reference(cl::EnqueueArgs(q, cl::NDRange(1,1,1), cl::NDRange(1,1,1)), 
-        tg.nglobaledges, root, buffer_pred, buffer_shortest, buffer_in);
+    krnl_sssp_reference(cl::EnqueueArgs(q, cl::NDRange(1,1,1),
+        cl::NDRange(1,1,1)), tg.nglobaledges,
+        tg.nglobalverts, root, buffer_pred, buffer_shortest,
+        buffer_in);
 
     double sssp_stop = MPI_Wtime();
 
