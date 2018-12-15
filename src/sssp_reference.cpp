@@ -22,9 +22,10 @@
 
 // typedef ap_fixed<8, 2> data_v; // representing weight of vertices and edges
 typedef ap_int<8> data_v; // representing weight of vertices and edges
-typedef ap_int<24>         data_i; // representing indices
+typedef ap_int<28>         data_i; // representing indices
 typedef ap_uint<1> uint1;
 typedef ap_int<2> int2;
+
 
 #define MAX_VERTICES (2^23)
 #define P            8
@@ -32,9 +33,9 @@ typedef ap_int<2> int2;
 #define MAX_EDGES    (2^27)
 #define MAX_ITER     (2^24)
 #define BURST_SIZE   256
-#define BURST_WIDTH  (8*56)
-#define MEM_WORD_WIDTH 56
-#define INDEX_WIDTH  24
+#define BURST_WIDTH  (8*64)
+#define MEM_WORD_WIDTH 64
+#define INDEX_WIDTH  28
 #define WEIGHT_WIDTH 8
 
 // end of modification
@@ -113,18 +114,17 @@ inline uint1 compare(int2 up1,
   return swap;
 }
 
+
 void sorting_block(int2* update_signal, 
                    data_i* s, 
                    data_i* d, 
                    data_v* weights, 
                    data_v* dist_s,
-                   data_v* dist_d,
                    int2* update_signal6, 
                    data_i* s6, 
                    data_i* d6, 
                    data_v* weights6, 
-                   data_v* dist_s6,
-                   data_v* dist_d6){
+                   data_v* dist_s6){
 #pragma HLS inline off
 
     data_v dist_s1[8];
@@ -138,16 +138,6 @@ void sorting_block(int2* update_signal,
     data_v dist_s5[8];
     #pragma HLS array_partition variable=dist_s5 complete
     
-    data_v dist_d1[8];
-    #pragma HLS array_partition variable=dist_d1 complete
-    data_v dist_d2[8];
-    #pragma HLS array_partition variable=dist_d2 complete
-    data_v dist_d3[8];
-    #pragma HLS array_partition variable=dist_d3 complete
-    data_v dist_d4[8];
-    #pragma HLS array_partition variable=dist_d4 complete
-    data_v dist_d5[8];
-    #pragma HLS array_partition variable=dist_d5 complete
     
     // source indices
     data_i s1[8];
@@ -208,35 +198,35 @@ void sorting_block(int2* update_signal,
       data_i ss = s[2*i];
       data_i dd = d[2*i];
       data_v dist_ss = dist_s[2*i];
-      data_v dist_dd = dist_d[2*i];
+      //data_v dist_dd = dist_d[2*i];
       
       update_signal1[2*i] = update_signal[2*i+1];
       weights1[2*i] = weights[2*i+1];
       s1[2*i] = s[2*i+1];
       d1[2*i] = d[2*i+1];
       dist_s1[2*i] = dist_s[2*i+1];
-      dist_d1[2*i] = dist_d[2*i+1];
+      //dist_d1[2*i] = dist_d[2*i+1];
       
       update_signal1[2*i+1] = up;
       weights1[2*i+1] = w;
       s1[2*i+1] = ss;
       d1[2*i+1] = dd;
       dist_s1[2*i+1] = dist_ss;
-      dist_d1[2*i+1] = dist_dd;
+      //dist_d1[2*i+1] = dist_dd;
     } else {
       update_signal1[2*i] = update_signal[2*i];
       weights1[2*i] = weights[2*i];
       s1[2*i] = s[2*i];
       d1[2*i] = d[2*i];
       dist_s1[2*i] = dist_s[2*i];
-      dist_d1[2*i] = dist_d[2*i];
+      //dist_d1[2*i] = dist_d[2*i];
       
       update_signal1[2*i+1] = update_signal[2*i+1];
       weights1[2*i+1] = weights[2*i+1];
       s1[2*i+1] = s[2*i+1];
       d1[2*i+1] = d[2*i];
       dist_s1[2*i+1] = dist_s[2*i+1];
-      dist_d1[2*i+1] = dist_d[2*i+1];
+      //dist_d1[2*i+1] = dist_d[2*i+1];
     }
   }
   
@@ -249,35 +239,35 @@ void sorting_block(int2* update_signal,
       data_i ss = s1[i];
       data_i dd = d1[i];
       data_v dist_ss = dist_s1[i];
-      data_v dist_dd = dist_d1[i];
+      //data_v dist_dd = dist_d1[i];
       
       update_signal2[i] = update_signal1[3-i];
       weights2[i] = weights1[3-i];
       s2[i] = s1[3-i];
       d2[i] = d1[3-i];
       dist_s2[i] = dist_s1[3-i];
-      dist_d2[i] = dist_d1[3-i];
+      //dist_d2[i] = dist_d1[3-i];
       
       update_signal2[3-i] = up;
       weights2[3-i] = w;
       s2[3-i] = ss;
       d2[3-i] = dd;
       dist_s2[3-i] = dist_ss;
-      dist_d2[3-i] = dist_dd;
+      //dist_d2[3-i] = dist_dd;
     } else {
       update_signal2[3-i] = update_signal1[3-i];
       weights2[3-i] = weights1[3-i];
       s2[3-i] = s1[3-i];
       d2[3-i] = d1[3-i];
       dist_s2[3-i] = dist_s1[3-i];
-      dist_d2[3-i] = dist_d1[3-i];
+      //dist_d2[3-i] = dist_d1[3-i];
       
       update_signal2[i] = update_signal1[i];
       weights2[i] = weights1[i];
       s2[i] = s1[i];
       d2[i] = d1[i];
       dist_s2[i] = dist_s1[i];
-      dist_d2[i] = dist_d1[i];
+      //dist_d2[i] = dist_d1[i];
     }
     
     if(compare(update_signal1[i+4], update_signal1[7-i], d1[i+4], d1[7-i], weights1[i+4]+dist_s1[7-i], weights1[i+4]+dist_s1[7-i]) == 1){
@@ -286,35 +276,35 @@ void sorting_block(int2* update_signal,
       data_i ss = s1[i+4];
       data_i dd = d1[i+4];
       data_v dist_ss = dist_s1[i+4];
-      data_v dist_dd = dist_d1[i+4];
+      //data_v dist_dd = dist_d1[i+4];
       
       update_signal2[i+4] = update_signal1[7-i];
       weights2[i+4] = weights1[7-i];
       s2[i+4] = s1[7-i];
       d2[i+4] = d1[7-i];
       dist_s2[i+4] = dist_s1[7-i];
-      dist_d2[i+4] = dist_d1[7-i];
+      //dist_d2[i+4] = dist_d1[7-i];
       
       update_signal2[7-i] = up;
       weights2[7-i] = w;
       s2[7-i] = ss;
       d2[7-i] = dd;
       dist_s2[7-i] = dist_ss;
-      dist_d2[7-i] = dist_dd;
+      //dist_d2[7-i] = dist_dd;
     } else {
       update_signal2[7-i] = update_signal1[7-i];
       weights2[7-i] = weights1[7-i];
       s2[7-i] = s1[7-i];
       d2[7-i] = d1[7-i];
       dist_s2[7-i] = dist_s1[7-i];
-      dist_d2[7-i] = dist_d1[7-i];
+      //dist_d2[7-i] = dist_d1[7-i];
       
       update_signal2[i+4] = update_signal1[i+4];
       weights2[i+4] = weights1[i+4];
       s2[i+4] = s1[i+4];
       d2[i+4] = d1[i+4];
       dist_s2[i+4] = dist_s1[i+4];
-      dist_d2[i+4] = dist_d1[i+4];
+      //dist_d2[i+4] = dist_d1[i+4];
     }
   }
   
@@ -327,35 +317,35 @@ void sorting_block(int2* update_signal,
       data_i ss = s2[2*i];
       data_i dd = d2[2*i];
       data_v dist_ss = dist_s2[2*i];
-      data_v dist_dd = dist_d2[2*i];
+      //data_v dist_dd = dist_d2[2*i];
       
       update_signal3[2*i] = update_signal2[2*i+1];
       weights3[2*i] = weights2[2*i+1];
       s3[2*i] = s2[2*i+1];
       d3[2*i] = d2[2*i+1];
       dist_s3[2*i] = dist_s2[2*i+1];
-      dist_d3[2*i] = dist_d2[2*i+1];
+      //dist_d3[2*i] = dist_d2[2*i+1];
       
       update_signal3[2*i+1] = up;
       weights3[2*i+1] = w;
       s3[2*i+1] = ss;
       d3[2*i+1] = dd;
       dist_s3[2*i+1] = dist_ss;
-      dist_d3[2*i+1] = dist_dd;
+      //dist_d3[2*i+1] = dist_dd;
     } else {
       update_signal3[2*i] = update_signal2[2*i];
       weights3[2*i] = weights2[2*i];
       s3[2*i] = s2[2*i];
       d3[2*i] = d2[2*i];
       dist_s3[2*i] = dist_s2[2*i];
-      dist_d3[2*i] = dist_d2[2*i];
+      //dist_d3[2*i] = dist_d2[2*i];
       
       update_signal3[2*i+1] = update_signal2[2*i+1];
       weights3[2*i+1] = weights2[2*i+1];
       s3[2*i+1] = s2[2*i+1];
       d3[2*i+1] = d2[2*i+1];
       dist_s3[2*i+1] = dist_s2[2*i+1];
-      dist_d3[2*i+1] = dist_d2[2*i+1];
+      //dist_d3[2*i+1] = dist_d2[2*i+1];
     }
   }
   
@@ -368,35 +358,35 @@ void sorting_block(int2* update_signal,
       data_i ss = s3[i];
       data_i dd = d3[i];
       data_v dist_ss = dist_s3[i];
-      data_v dist_dd = dist_d3[i];
+      //data_v dist_dd = dist_d3[i];
       
       update_signal4[i] = update_signal3[7-i];
       weights4[i] = weights3[7-i];
       s4[i] = s3[7-i];
       d4[i] = d3[7-i];
       dist_s4[i] = dist_s3[7-i];
-      dist_d4[i] = dist_d3[7-i];
+      //dist_d4[i] = dist_d3[7-i];
       
       update_signal4[7-i] = up;
       weights4[7-i] = w;
       s4[7-i] = ss;
       d4[7-i] = dd;
       dist_s4[7-i] = dist_ss;
-      dist_d4[7-i] = dist_dd;
+      //dist_d4[7-i] = dist_dd;
     }else {
       update_signal4[7-i] = update_signal3[7-i];
       weights4[7-i] = weights3[7-i];
       s4[7-i] = s3[7-i];
       d4[7-i] = d3[7-i];
       dist_s4[7-i] = dist_s3[7-i];
-      dist_d4[7-i] = dist_d3[7-i];
+      //dist_d4[7-i] = dist_d3[7-i];
       
       update_signal4[i] = update_signal3[i];
       weights4[i] = weights3[i];
       s4[i] = s3[i];
       d4[i] = d3[i];
       dist_s4[i] = dist_s3[i];
-      dist_d4[i] = dist_d3[i];
+      //dist_d4[i] = dist_d3[i];
     }
   }
   
@@ -409,35 +399,35 @@ void sorting_block(int2* update_signal,
       data_i ss = s4[i];
       data_i dd = d4[i];
       data_v dist_ss = dist_s4[i];
-      data_v dist_dd = dist_d4[i];
+      //data_v dist_dd = dist_d4[i];
       
       update_signal5[i] = update_signal4[i+2];
       weights5[i] = weights4[i+2];
       s5[i] = s4[i+2];
       d5[i] = d4[i+2];
       dist_s5[i] = dist_s4[i+2];
-      dist_d5[i] = dist_d4[i+2];
+      //dist_d5[i] = dist_d4[i+2];
       
       update_signal5[i+2] = up;
       weights5[i+2] = w;
       s5[i+2] = ss;
       d5[i+2] = dd;
       dist_s5[i+2] = dist_ss;
-      dist_d5[i+2] = dist_dd;
+      //dist_d5[i+2] = dist_dd;
     } else {
       update_signal5[i+2] = update_signal4[i+2];
       weights5[i+2] = weights4[i+2];
       s5[i+2] = s4[i+2];
       d5[i+2] = d4[i+2];
       dist_s5[i+2] = dist_s4[i+2];
-      dist_d5[i+2] = dist_d4[i+2];
+      //dist_d5[i+2] = dist_d4[i+2];
       
       update_signal5[i] = update_signal4[i];
       weights5[i] = weights4[i];
       s5[i] = s4[i];
       d5[i] = d4[i];
       dist_s5[i] = dist_s4[i];
-      dist_d5[i] = dist_d4[i];
+      //dist_d5[i] = dist_d4[i];
     }
     
     if(compare(update_signal4[i+4], update_signal4[i+6], d4[i+4], d4[i+6], weights4[i+4]+dist_s4[i+6], weights4[i+4]+dist_s4[i+6]) == 1){
@@ -446,35 +436,35 @@ void sorting_block(int2* update_signal,
       data_i ss = s4[i+4];
       data_i dd = d4[i+4];
       data_v dist_ss = dist_s4[i+4];
-      data_v dist_dd = dist_d4[i+4];
+      //data_v dist_dd = dist_d4[i+4];
       
       update_signal5[i+4] = update_signal4[i+6];
       weights5[i+4] = weights4[i+6];
       s5[i+4] = s4[i+6];
       d5[i+4] = d4[i+6];
       dist_s5[i+4] = dist_s4[i+6];
-      dist_d5[i+4] = dist_d4[i+6];
+      //dist_d5[i+4] = dist_d4[i+6];
       
       update_signal5[i+6] = up;
       weights5[i+6] = w;
       s5[i+6] = ss;
       d5[i+6] = dd;
       dist_s5[i+6] = dist_ss;
-      dist_d5[i+6] = dist_dd;
+      //dist_d5[i+6] = dist_dd;
     } else {
       update_signal5[i+6] = update_signal4[i+6];
       weights5[i+6] = weights4[i+6];
       s5[i+6] = s4[i+6];
       d5[i+6] = d4[i+6];
       dist_s5[i+6] = dist_s4[i+6];
-      dist_d5[i+6] = dist_d4[i+6];
+      //dist_d5[i+6] = dist_d4[i+6];
       
       update_signal5[i+4] = update_signal4[i+4];
       weights5[i+4] = weights4[i+4];
       s5[i+4] = s4[i+4];
       d5[i+4] = d4[i+4];
       dist_s5[i+4] = dist_s4[i+4];
-      dist_d5[i+4] = dist_d4[i+4];
+      //dist_d5[i+4] = dist_d4[i+4];
     }
      
   }
@@ -488,40 +478,41 @@ void sorting_block(int2* update_signal,
       data_i ss = s5[2*i];
       data_i dd = d5[2*i];
       data_v dist_ss = dist_s5[2*i];
-      data_v dist_dd = dist_d5[2*i];
+      //data_v dist_dd = dist_d5[2*i];
       
       update_signal6[2*i] = update_signal5[2*i+1];
       weights6[2*i] = weights5[2*i+1];
       s6[2*i] = s5[2*i+1];
       d6[2*i] = d5[2*i+1];
       dist_s6[2*i] = dist_s5[2*i+1];
-      dist_d6[2*i] = dist_d5[2*i+1];
+      //dist_d6[2*i] = dist_d5[2*i+1];
       
       update_signal6[2*i+1] = up;
       weights6[2*i+1] = w;
       s6[2*i+1] = ss;
       d6[2*i+1] = dd;
       dist_s6[2*i+1] = dist_ss;
-      dist_d6[2*i+1] = dist_dd;
+      //dist_d6[2*i+1] = dist_dd;
     } else {
       update_signal6[2*i] = update_signal5[2*i];
       weights6[2*i] = weights5[2*i];
       s6[2*i] = s5[2*i];
       d6[2*i] = d5[2*i];
       dist_s6[2*i] = dist_s5[2*i];
-      dist_d6[2*i] = dist_d5[2*i];
+      //dist_d6[2*i] = dist_d5[2*i];
       
       update_signal6[2*i+1] = update_signal5[2*i+1];
       weights6[2*i+1] = weights5[2*i+1];
       s6[2*i+1] = s5[2*i+1];
       d6[2*i+1] = d5[2*i+1];
       dist_s6[2*i+1] = dist_s5[2*i+1];
-      dist_d6[2*i+1] = dist_d5[2*i+1];
+      //dist_d6[2*i+1] = dist_d5[2*i+1];
     }
   }
 
 }
 
+/*
 void mem_read(data_v* dist_d, 
               data_i* d, 
               int2* up_in,
@@ -564,7 +555,7 @@ void computation_block(int2* up_in,
     
   }
 }
-
+*/
 void computation_block_revised(uint1* terminate,
                        int2* up_in, 
                        data_v* weights, 
@@ -573,7 +564,7 @@ void computation_block_revised(uint1* terminate,
                        data_i* s, 
                        data_i* d,  
                        data_v* dist_global,
-                       data_i* pred){
+                       int* pred){
 #pragma HLS inline off
 
   uint1 t[P];
@@ -593,7 +584,7 @@ void computation_block_revised(uint1* terminate,
       if(tmp < dest || dest < 0){
         if(tmp > 0){
           dist_global[d[i]] = tmp;
-          pred[d[i]] = s[i];
+          pred[d[i]] = (int)(s[i]);
           terminate[0] = 0;
         }
       }
@@ -606,6 +597,7 @@ void computation_block_revised(uint1* terminate,
   }
 }
 
+/*
 void mem_write(uint1* terminate,
                int2* up_in, 
                data_v* val_in,
@@ -710,13 +702,13 @@ void computation_unit(uint1* terminate, int2* update_sginal, data_i* s, data_i* 
 // data forwarding
 }
 
-
+*/
 
 
 void run_sssp(int nlocaledges,
               int nlocalvertices,
               data_i root,
-              data_i* pred,
+              int* pred,
               data_v* dist,
               const ap_uint<BURST_WIDTH>* dram1
               /*data_v* weight_dram2,
@@ -725,7 +717,7 @@ void run_sssp(int nlocaledges,
     // TODO: your modification here
     
 
-#pragma HLS INTERFACE m_axi port=pred offset=slave bundle=gmem 
+#pragma HLS INTERFACE m_axi port=pred offset=slave bundle=gmem1 
 #pragma HLS INTERFACE m_axi port=dist offset=slave bundle=gmem 
 #pragma HLS INTERFACE m_axi port=dram1 offset=slave bundle=gmem 
 //#endif
@@ -773,14 +765,6 @@ void run_sssp(int nlocaledges,
     #pragma HLS array_partition variable=dist_com3_d complete
     data_v dist_com4_d[8];
     #pragma HLS array_partition variable=dist_com4_d complete
-    data_v dist_com5_d[8];
-    #pragma HLS array_partition variable=dist_com5_d complete
-    data_v dist_com6_d[8];
-    #pragma HLS array_partition variable=dist_com6_d complete
-    data_v dist_com7_d[8];
-    #pragma HLS array_partition variable=dist_com7_d complete
-    data_v dist_com8_d[8];
-    #pragma HLS array_partition variable=dist_com8_d complete
     
     // source indices
     data_i com1_s[8];
@@ -879,6 +863,7 @@ void run_sssp(int nlocaledges,
     data_v weight_local2[BURST_SIZE];
     #pragma HLS array_partition variable=weight_local2 complete
     
+    
     // loop over iteration
     for(i = 0; i < MAX_VERTICES; i++){
       if( i < nlocalvertices-1 ){
@@ -897,11 +882,18 @@ void run_sssp(int nlocaledges,
               if((l / (BURST_SIZE / P) %2)){
                   for(int ii = 0; ii < P; ii++){
                     #pragma HLS unroll factor=8
+                    dist_com1_s[ii] = dist_local[s_local2[ii]];
+                    com1_update_signal[ii] = 1;
+                  }
+                  sorting_block(com1_update_signal, s_local2, d_local2, weight_local2, dist_com1_s, com2_update_signal, com2_s, com2_d, com2_weights, dist_com2_s);
+                  computation_block_revised(terminate, com2_update_signal,  com2_weights, dist_com2_s, dist_com3_d, com2_s, com2_d, dist_local, pred);
+                  /*for(int ii = 0; ii < P; ii++){
+                    #pragma HLS unroll factor=8
                     dist_com3_s[ii] = dist_local[s_local2[ii]];
                     com3_update_signal[ii] = 1;
                   }
-                  sorting_block(com3_update_signal, s_local2+(l*P), d_local2+(l*P), weight_local2+(l*P), dist_com3_s, dist_com3_d, com4_update_signal, com4_s, com4_d, com4_weights, dist_com4_s, dist_com4_d);
-                  computation_block_revised(terminate+1, com4_update_signal,  com4_weights, dist_com4_s, dist_com4_d, com4_s, com4_d, dist_local, pred);
+                  //sorting_block(com3_update_signal, s_local2+(l*P), d_local2+(l*P), weight_local2+(l*P), dist_com3_s, dist_com3_d, com4_update_signal, com4_s, com4_d, com4_weights, dist_com4_s, dist_com4_d);
+                  computation_block_revised(terminate+1, com4_update_signal,  com4_weights, dist_com4_s, dist_com1_d, com4_s, com4_d, dist_local, pred);*/
                   
               } else {
                   for(int ii = 0; ii < P; ii++){
@@ -909,21 +901,28 @@ void run_sssp(int nlocaledges,
                     dist_com1_s[ii] = dist_local[s_local2[ii]];
                     com1_update_signal[ii] = 1;
                   }
-                  sorting_block(com1_update_signal, s_local2, d_local2, weight_local2, dist_com1_s, dist_com1_d, com2_update_signal, com2_s, com2_d, com2_weights, dist_com2_s, dist_com2_d);
-                  computation_block_revised(terminate, com2_update_signal,  com2_weights, dist_com2_s, dist_com2_d, com2_s, com2_d, dist_local, pred);
+                  sorting_block(com1_update_signal, s_local2, d_local2, weight_local2, dist_com1_s, com2_update_signal, com2_s, com2_d, com2_weights, dist_com2_s);
+                  computation_block_revised(terminate, com2_update_signal,  com2_weights, dist_com2_s, dist_com3_d, com2_s, com2_d, dist_local, pred);
               }
             }
           } else {
             Load( j < nlocaledges, dram1, s_local2, d_local2, weight_local2);
             for(l = 0; l < BURST_SIZE / P; l++){
-              if((l / (BURST_SIZE / P) %2)){
+              for(int ii = 0; ii < P; ii++){
+                    #pragma HLS unroll factor=8
+                    dist_com5_s[ii] = dist_local[s_local1[ii]];
+                    com5_update_signal[ii] = 1;
+                  }
+                  sorting_block(com5_update_signal, s_local1, d_local1, weight_local1, dist_com5_s, com6_update_signal, com6_s, com6_d, com6_weights, dist_com6_s);
+                  computation_block_revised(terminate+2, com6_update_signal,  com6_weights, dist_com6_s, dist_com4_d, com6_s, com6_d, dist_local, pred);
+              /*if((l / (BURST_SIZE / P) %2)){
                   for(int ii = 0; ii < P; ii++){
                     #pragma HLS unroll factor=8
                     dist_com7_s[ii] = dist_local[s_local1[ii]];
                     com7_update_signal[ii] = 1;
                   }
-                  sorting_block(com7_update_signal, s_local1+(l*P), d_local1+(l*P), weight_local1+(l*P), dist_com7_s, dist_com7_d, com8_update_signal, com8_s, com8_d, com8_weights, dist_com8_s, dist_com8_d);
-                  computation_block_revised(terminate+3, com8_update_signal,  com8_weights, dist_com8_s, dist_com8_d, com8_s, com8_d, dist_local, pred);
+                  sorting_block(com7_update_signal, s_local1+(l*P), d_local1+(l*P), weight_local1+(l*P), dist_com7_s,  com8_update_signal, com8_s, com8_d, com8_weights, dist_com8_s);
+                  computation_block_revised(terminate+3, com8_update_signal,  com8_weights, dist_com8_s, dist_com3_d, com8_s, com8_d, dist_local, pred);
                   
               } else {
                   for(int ii = 0; ii < P; ii++){
@@ -931,16 +930,16 @@ void run_sssp(int nlocaledges,
                     dist_com5_s[ii] = dist_local[s_local1[ii]];
                     com5_update_signal[ii] = 1;
                   }
-                  sorting_block(com5_update_signal, s_local1, d_local1, weight_local1, dist_com5_s, dist_com5_d, com6_update_signal, com6_s, com6_d, com6_weights, dist_com6_s, dist_com6_d);
-                  computation_block_revised(terminate+2, com6_update_signal,  com6_weights, dist_com6_s, dist_com6_d, com6_s, com6_d, dist_local, pred);
-              }
+                  sorting_block(com5_update_signal, s_local1, d_local1, weight_local1, dist_com5_s, com6_update_signal, com6_s, com6_d, com6_weights, dist_com6_s);
+                  computation_block_revised(terminate+2, com6_update_signal,  com6_weights, dist_com6_s, dist_com4_d, com6_s, com6_d, dist_local, pred);
+              }*/
             }
           }
         }
         
       
       }
-      if(terminate[0] == 1) break;
+      if(terminate[0] == 1 & terminate[1] == 1 & terminate[2] == 1 & terminate[3] == 1) break;
       }
     }
     
