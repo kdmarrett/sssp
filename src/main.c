@@ -126,12 +126,12 @@ int main(int argc, char** argv) {
 
     // Generate DRAM data structure
     srand(time(0)); // set random seed
-    ap_uint<64>* dram1;
+    mem_word* dram1;
 
     // declare the dram holding the edges
-    vector<ap_uint<64>, aligned_allocator<ap_uint<64>> dram1(tg.nglobaledges);
+    vector<mem_word, aligned_allocator<mem_word> dram1(tg.nglobaledges);
     vector<int, aligned_allocator<int> pred(tg.nglobalverts);
-    vector<float, aligned_allocator<float> shortest(tg.nglobalverts);
+    vector<data_v, aligned_allocator<data_v> shortest(tg.nglobalverts);
 	/*int64_t* pred = (int64_t*)xMPI_Alloc_mem(nlocalverts * sizeof(int64_t));*/
 	/*float* shortest = (float*)xMPI_Alloc_mem(nlocalverts * sizeof(float));*/
 
@@ -145,8 +145,9 @@ int main(int argc, char** argv) {
             dram1[i * edgefactor + j] = (start, i, local_weight); // this bit packs two idxs, 1 weigt
         }
     }
-    clean_pred(&pred[0]); //user-provided function from bfs_implementation.c
-
+    // TODO does sssp does this anyway
+    clean_pred(&pred[0]); // init to null
+    clean_shortest(&shortest[0]); // init to null
 
     // Setup device
     vector<cl::Device> devices = xcl::get_xil_devices();
@@ -164,23 +165,35 @@ int main(int argc, char** argv) {
 
 
     // Place graph on device
-    vector<cl::Memory> inBufVec, outBufVec;
+    vector<cl::Memory> inBufVec, predBufVec, shortestBufVec;
     cl::Buffer buffer_in(context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
             tg.nglobaledges * sizeof(mem_word) dram1.data();  
-    // TODO decide outbuffer
-    /*cl::Buffer buffer_in(context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,*/
-            /*tg.nglobaledges * sizeof(mem_word) dram1.data();  */
+    cl::Buffer buffer_pred(context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
+            tg.nglobalverts * sizeof(int) pred.data();  
+    cl::Buffer buffer_shortest(context, CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
+            tg.nglobalverts * sizeof(data_v) shortest.data();  
     inBufVec.push_back(buffer_in);
-    /*outBufVec.push_back(buffer_out);*/
+    predBufVec.push_back(buffer_pred);
+    shortestBufVec.push_back(buffer_shortest);
 
     //copy input data to device global memory
-    q.enqueueMigrateMemObjects(inBufFec, 0); //0 signifies from host
+    q.enqueueMigrateMemObjects(inBufVec, 0); //0 signifies from host
 
-    // TODO is first data size correct for the kernel argument?
     auto krnl_sssp_reference = cl::KernelFunctor< mem_word, cl::Buffer&, cl::Buffer&>(kernel);
     // Setup of OpenCl end
 
-    // Run kernel
+    // Run kernel /* Do the actual SSSP. */
+    double sssp_start = MPI_Wtime();
+    krnl_sssp_reference(cl::EnqueueArgs(q, cl::NDRange(1,1,1), cl::NDRange(1,1,1)), 
+        tg.nglobaledges, root, buffer_pred, buffer_shortest, buffer_in);
+
+    double sssp_stop = MPI_Wtime();
+
+    // Copy Result from Device Global Memory to Host Local Memory
+    q.enqueueMigrateMemObjects(buffer_pred, CL_MIGRATE_MEM_OBJECT_HOST);
+    q.enqueueMigrateMemObjects(buffer_shortest, CL_MIGRATE_MEM_OBJECT_HOST);
+    q.finish();
+
     
 	if (tg.data_in_file) {
 		int is_opened = 0;
@@ -420,12 +433,12 @@ int main(int argc, char** argv) {
 	double* bfs_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
 	double* validate_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
 	uint64_t nlocalverts = get_nlocalverts_for_pred();
-	int64_t* pred = (int64_t*)xMPI_Alloc_mem(nlocalverts * sizeof(int64_t));
-	float* shortest = (float*)xMPI_Alloc_mem(nlocalverts * sizeof(float));
 
 
 	int bfs_root_idx,i;
 #ifndef SKIP_BFS
+	int64_t* pred = (int64_t*)xMPI_Alloc_mem(nlocalverts * sizeof(int64_t));
+	float* shortest = (float*)xMPI_Alloc_mem(nlocalverts * sizeof(float));
     clean_pred(&pred[0]); //user-provided function from bfs_implementation.c
     run_bfs(bfs_roots[0], &pred[0]); //warm-up
     if (!getenv("SKIP_VALIDATION")) {
@@ -469,15 +482,15 @@ int main(int argc, char** argv) {
         } else
             validate_times[bfs_root_idx] = -1;
     }
-#endif
+/*#endif SKIP_BFS*/
 
 #ifdef SSSP
 double* sssp_times = (double*)xmalloc(num_bfs_roots * sizeof(double));
 double* validate_times2 = (double*)xmalloc(num_bfs_roots * sizeof(double));
 
-	clean_shortest(shortest);
-	clean_pred(pred);
-	run_sssp(bfs_roots[0], &pred[0],shortest); //warm-up
+	/*clean_shortest(shortest);*/
+	/*clean_pred(pred);*/
+	/*run_sssp(bfs_roots[0], &pred[0],shortest); //warm-up*/
 
 	for (bfs_root_idx = 0; bfs_root_idx < num_bfs_roots; ++bfs_root_idx) {
 		int64_t root = bfs_roots[bfs_root_idx];
@@ -489,9 +502,9 @@ double* validate_times2 = (double*)xmalloc(num_bfs_roots * sizeof(double));
 		clean_shortest(shortest);
 
 		/* Do the actual SSSP. */
-		double sssp_start = MPI_Wtime();
-		run_sssp(root, &pred[0],shortest);
-		double sssp_stop = MPI_Wtime();
+		/*double sssp_start = MPI_Wtime();*/
+		/*run_sssp(root, &pred[0],shortest);*/
+		/*double sssp_stop = MPI_Wtime();*/
 		sssp_times[bfs_root_idx] = sssp_stop - sssp_start;
 		int64_t edge_visit_count=0;
 		get_edge_count_for_teps(&edge_visit_count);
@@ -520,10 +533,12 @@ double* validate_times2 = (double*)xmalloc(num_bfs_roots * sizeof(double));
 		}
 	}
 
-#endif
-	MPI_Free_mem(pred);
+#endif // SSSP
+
+
+	/*MPI_Free_mem(pred);*/
 #ifdef SSSP
-	MPI_Free_mem(shortest);
+	/*MPI_Free_mem(shortest);*/
 #endif
 	free(bfs_roots);
 	free_graph_data_structure();
